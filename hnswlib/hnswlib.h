@@ -86,5 +86,3 @@ namespace hnswlib {
 #include "space_ip.h"
 #include "bruteforce.h"
 #include "hnswalg.h"
-
-//#include <omp.h>

@@ -36,4 +36,3 @@ add_executable(test_updates examples/updates_test.cpp)
 target_link_libraries (test_updates PRIVATE Threads::Threads)
 
 target_link_libraries(main sift_test) 
-#target_link_libraries(main OpenMP::OpenMP_CXX)
