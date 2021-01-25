@@ -601,6 +601,10 @@ namespace hnswlib {
 
         void saveIndex(const std::string &location) {
             std::ofstream output(location, std::ios::binary);
+            if (!output.is_open()) {
+                fprintf(stderr, "Error: cannot create file %s .\n", location.c_str());
+                exit(EXIT_FAILURE);
+            }
             std::streampos position;
 
             writeBinaryPOD(output, offsetLevel0_);

@@ -148,31 +148,42 @@ void test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<
 
 
 void sift_test() {
-    size_t vecsize = 980000;
+//    size_t vecsize = 980000;
+    size_t vecsize = 1000000;
     size_t qsize = 20000;
     //size_t qsize = 1000;
     //size_t vecdim = 4;
     size_t vecdim = 128;
 
-    float *mass = new float[vecsize * vecdim];
-    ifstream input("../../sift100k.bin", ios::binary);
+    int efConstruction = 40; // ?
+    int M = 16; // ?
+
+//    float *mass = new float[vecsize * vecdim];
+    float *mass = new float[vecsize * (vecdim + 1)];
+    ifstream input("/scratch/zpeng/data/sift1m/sift_base.fvecs", ios::binary);
+    if (!input.is_open()) {
+        fprintf(stderr, "Error: cannot open input file.\n");
+        exit(EXIT_FAILURE);
+    }
+    input.read((char *) mass, vecsize * (vecdim + 1) * 4);
+//    ifstream input("../../sift100k.bin", ios::binary);
     //ifstream input("../../1M_d=4.bin", ios::binary);
-    input.read((char *) mass, vecsize * vecdim * sizeof(float));
-    input.close();
+//    input.read((char *) mass, vecsize * vecdim * sizeof(float));
+//    input.close();
 
-    float *massQ = new float[qsize * vecdim];
-    //ifstream inputQ("../siftQ100k.bin", ios::binary);
-    ifstream inputQ("../../siftQ100k.bin", ios::binary);
-    //ifstream inputQ("../../1M_d=4q.bin", ios::binary);
-    inputQ.read((char *) massQ, qsize * vecdim * sizeof(float));
-    inputQ.close();
-
-    unsigned int *massQA = new unsigned int[qsize * 100];
-    //ifstream inputQA("../knnQA100k.bin", ios::binary);
-    ifstream inputQA("../../knnQA100k.bin", ios::binary);
-    //ifstream inputQA("../../1M_d=4qa.bin", ios::binary);
-    inputQA.read((char *) massQA, qsize * 100 * sizeof(int));
-    inputQA.close();
+//    float *massQ = new float[qsize * vecdim];
+//    //ifstream inputQ("../siftQ100k.bin", ios::binary);
+//    ifstream inputQ("../../siftQ100k.bin", ios::binary);
+//    //ifstream inputQ("../../1M_d=4q.bin", ios::binary);
+//    inputQ.read((char *) massQ, qsize * vecdim * sizeof(float));
+//    inputQ.close();
+//
+//    unsigned int *massQA = new unsigned int[qsize * 100];
+//    //ifstream inputQA("../knnQA100k.bin", ios::binary);
+//    ifstream inputQA("../../knnQA100k.bin", ios::binary);
+//    //ifstream inputQA("../../1M_d=4qa.bin", ios::binary);
+//    inputQA.read((char *) massQA, qsize * 100 * sizeof(int));
+//    inputQA.close();
 
     int maxn = 16;
     /*unsigned int *massA = new unsigned int[vecsize * 100];
@@ -202,20 +213,42 @@ void sift_test() {
 
      cout << virtualMemUsedByMe/1000/1000 << "\n";*/
     //HierarchicalNSW<float> appr_alg(&l2space, vecsize, 6, 40);
-    HierarchicalNSW<float> appr_alg(&l2space, vecsize, 16, 200);
+//    HierarchicalNSW<float> appr_alg(&l2space, vecsize, 16, 200);
+    HierarchicalNSW<float> appr_alg(&l2space, vecsize, M, efConstruction);
 
+//    float *mass = new float[vecdim];
     cout << "Building index\n";
     StopW stopwb = StopW();
     for (int i = 0; i < 1; i++) {
-        appr_alg.addPoint((void *) (mass + vecdim * i), (size_t) i);
+//        int in;
+//        input.read((char *) &in, 4);
+//        input.read((char *) mass, vecdim * 4);
+//        appr_alg.addPoint((void *) mass, (size_t) i);
+//        appr_alg.addPoint((void *) (mass + vecdim * i), (size_t) i);
+        appr_alg.addPoint((void *) (mass + (vecdim + 1) * i + 1), (size_t) i);
+
     }
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int i = 1; i < vecsize; i++) {
-        appr_alg.addPoint((void *) (mass + vecdim * i), (size_t) i);
+//        {//test
+//            printf("i: %d\n", i);
+//        }
+//        int in;
+//        input.read((char *) &in, 4);
+//        input.read((char *) mass, vecdim * 4);
+//        appr_alg.addPoint((void *) mass, (size_t) i);
+//        appr_alg.addPoint((void *) (mass + vecdim * i), (size_t) i);
+        appr_alg.addPoint((void *) (mass + (vecdim + 1) * i + 1), (size_t) i);
+
+        if (i % 100000 == 0) {
+            printf("i: %d\n", i);
+        }
     }
+    delete[] mass;
     /*GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
     virtualMemUsedByMe = pmc.WorkingSetSize;
     cout << virtualMemUsedByMe / 1000 / 1000 << "\n";*/
+    appr_alg.saveIndex("output.sift_test.bin");
     cout << "Index built, time=" << stopwb.getElapsedTimeMicro() * 1e-6 << "\n";
     //appr_alg.saveIndex("hnswlib_sift");
 
@@ -226,16 +259,16 @@ void sift_test() {
     //get_knn_quality(massA, vecsize, maxn, appr_alg);
     //return;
 
-    vector<std::priority_queue<std::pair<float, labeltype >>> answers;
-    size_t k = 10;
-    cout << "Loading gt\n";
-    //get_gt(mass, massQ, vecsize, qsize, l2space, vecdim, answers,k);
-    get_gt(massQA, massQ, mass, vecsize, qsize, l2space, vecdim, answers, k);
-    cout << "Loaded gt\n";
-    for (int i = 0; i < 1; i++)
-        test_vs_recall(massQ, vecsize, qsize, appr_alg, vecdim, answers, k);
-    //cout << "opt:\n";
-    //appr_alg.opt = true;
+//    vector<std::priority_queue<std::pair<float, labeltype >>> answers;
+//    size_t k = 10;
+//    cout << "Loading gt\n";
+//    //get_gt(mass, massQ, vecsize, qsize, l2space, vecdim, answers,k);
+//    get_gt(massQA, massQ, mass, vecsize, qsize, l2space, vecdim, answers, k);
+//    cout << "Loaded gt\n";
+//    for (int i = 0; i < 1; i++)
+//        test_vs_recall(massQ, vecsize, qsize, appr_alg, vecdim, answers, k);
+//    //cout << "opt:\n";
+//    //appr_alg.opt = true;
 
     return;
     //test_approx(mass, massQ, vecsize, qsize, appr_alg, vecdim, answers);
@@ -299,4 +332,12 @@ void sift_test() {
 //    /*for(int i=0;i<1000;i++)
 //        cout << mass[i] << "\n";*/
 //        //("11", std::ios::binary);
+}
+
+int main()
+{
+    setbuf(stdout, nullptr); // Remove stdout buffer.
+    sift_test();
+
+    return EXIT_SUCCESS;
 }
