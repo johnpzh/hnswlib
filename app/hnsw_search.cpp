@@ -18,7 +18,7 @@ public:
         time_begin = std::chrono::steady_clock::now();
     }
 
-    float getElapsedTimeMicro() {
+    double getElapsedTimeMicro() {
         std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
         return (std::chrono::duration_cast<std::chrono::microseconds>(time_end - time_begin).count());
     }
@@ -202,7 +202,7 @@ static void get_gt(
 //        hnswlib::L2SpaceI &l2space,
 //        size_t vecdim,
         std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> &answers,
-        size_t k)
+        const size_t k)
 {
     (std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>>(qsize)).swap(answers);
 //    hnswlib::DISTFUNC<int> fstdistfunc_ = l2space.get_dist_func();
@@ -221,7 +221,7 @@ static float test_approx(
         size_t qsize,
         hnswlib::HierarchicalNSW<float> &appr_alg,
         size_t vecdim,
-        std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> &answers,
+        const std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> &answers,
         size_t k) {
     size_t correct = 0;
     size_t total = 0;
@@ -260,19 +260,20 @@ static void test_vs_recall(
         size_t qsize,
         hnswlib::HierarchicalNSW<float> &appr_alg,
         size_t vecdim,
-        std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> &answers,
+        const std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> &answers,
         size_t k)
 {
-    std::vector<size_t> efs;// = { 10,10,10,10,10 };
-    for (int i = k; i < 30; i++) {
-        efs.push_back(i);
-    }
-    for (int i = 30; i < 100; i += 10) {
-        efs.push_back(i);
-    }
-    for (int i = 100; i < 500; i += 40) {
-        efs.push_back(i);
-    }
+//    std::vector<size_t> efs;// = { 10,10,10,10,10 };
+//    for (int i = k; i < 30; i++) {
+//        efs.push_back(i);
+//    }
+//    for (int i = 30; i < 100; i += 10) {
+//        efs.push_back(i);
+//    }
+//    for (int i = 100; i < 500; i += 40) {
+//        efs.push_back(i);
+//    }
+    std::vector<size_t> efs({500, 100, 300});
     for (size_t ef : efs) {
         appr_alg.setEf(ef);
         StopW stopw = StopW();
@@ -288,176 +289,108 @@ static void test_vs_recall(
     }
 }
 
+void one_time_search_precision(
+        const float *massQ,
+        const size_t vecsize,
+        const size_t qsize,
+        hnswlib::HierarchicalNSW<float> &appr_alg,
+        const size_t vecdim,
+        const std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> &answers,
+        const size_t k,
+        const size_t ef,
+        double &runtime,
+        double &recall)
+{
+    appr_alg.setEf(ef);
+    StopW stopw = StopW();
+
+    recall = test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k);
+    double time_us_per_query = stopw.getElapsedTimeMicro() / qsize;
+
+    std::cout << ef << "\t" << recall << "\t" << time_us_per_query << " us\n";
+    runtime = time_us_per_query * qsize / 1000000.0;
+}
+
 void search(
         hnswlib::HierarchicalNSW<float> *appr_alg,
+        const std::vector<double> &P_targets,
+        const size_t ef_lower_origin,
+        const size_t ef_upper_origin,
         const float *massQ,
-        const unsigned int *massQA,
-        const int subset_size_milllions,
+        const std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> &answers,
+        const size_t vecsize,
         const size_t vecdim,
-        const size_t qsize)
-//        const char *path_data,
-//        const char *path_index,
-//        const int M,
-//        const int efConstruction)
+        const size_t qsize,
+        const size_t k)
 {
+//    test_vs_recall(massQ, vecsize, qsize, *appr_alg, vecdim, answers, k);
 
+    for (const double P_dest : P_targets) {
 
-//    int subset_size_milllions = 200;
-//    int efConstruction = 40; // ?
-//    int M = 16; // ?
+        size_t ef_upper = ef_upper_origin;
+        size_t ef_lower = ef_lower_origin;
+        size_t ef = ef_upper;
+        double runtime;
+        double recall;
 
-    size_t vecsize = subset_size_milllions * 1000000;
+        double last_runtime;
+        double last_recall;
 
-//    size_t qsize = 10000;
-//    size_t vecdim = 128;
-//    char path_index[1024];
-//    char path_gt[1024];
-//    char *path_q = "../bigann/bigann_query.bvecs";
-//    char *path_data = "../bigann/bigann_base.bvecs";
-//    sprintf(path_index, "sift1b_%dm_ef_%d_M_%d.bin", subset_size_milllions, efConstruction, M);
+        while (ef_lower <= ef_upper) {
+            printf("ef: %lu ef_lower: %lu ef_upper: %lu\n", ef, ef_lower, ef_upper);
 
-//    sprintf(path_gt, "../bigann/gnd/idx_%dM.ivecs", subset_size_milllions);
+            one_time_search_precision(
+                    massQ,
+                    vecsize,
+                    qsize,
+                    *appr_alg,
+                    vecdim,
+                    answers,
+                    k,
+                    ef,
+                    runtime,
+                    recall);
 
+            if (recall < P_dest) {
+                ef_lower = ef + 1;
 
-//    unsigned char *massb = new unsigned char[vecdim];
-//    float massb = new float[vecdim];
-//
-//    std::cout << "Loading GT:\n";
-//    std::ifstream inputGT(path_gt, std::ios::binary);
-//    unsigned int *massQA = new unsigned int[qsize * 1000];
-//    for (int i = 0; i < qsize; i++) {
-//        int t;
-//        inputGT.read((char *) &t, 4);
-//        inputGT.read((char *) (massQA + 1000 * i), t * 4);
-//        if (t != 1000) {
-//            std::cout << "err";
-//            return;
-//        }
-//    }
-//    inputGT.close();
+            } else if (recall > P_dest) {
+                ef_upper = ef - 1;
+                last_runtime = runtime;
+                last_recall = recall;
+            } else {
+                break;
+            }
+            if (ef_lower <= ef_upper) {
+                ef = (ef_lower + ef_upper) / 2;
+            }
+        }
 
-//    std::cout << "Loading queries:\n";
-//    unsigned char *massQ = new unsigned char[qsize * vecdim];
-//    std::ifstream inputQ(path_q, std::ios::binary);
-//
-//    for (int i = 0; i < qsize; i++) {
-//        int in = 0;
-//        inputQ.read((char *) &in, 4);
-//        if (in != 128) {
-//            std::cout << "file error";
-//            exit(1);
-//        }
-//        inputQ.read((char *) massb, in);
-//        for (int j = 0; j < vecdim; j++) {
-//            massQ[i * vecdim + j] = massb[j];
-//        }
-//
-//    }
-//    inputQ.close();
+        if (recall < P_dest && ef < ef_upper_origin) {
+            runtime = last_runtime;
+            recall = last_recall;
+        }
 
-
-//    unsigned char *mass = new unsigned char[vecdim];
-//    std::ifstream input(path_data, std::ios::binary);
-//    if (!input.is_open()) {
-//        fprintf(stderr, "Error: cannot open file %s .\n", path_data);
-//        exit(EXIT_FAILURE);
-//    }
-//    int in = 0;
-//    hnswlib::L2SpaceI l2space(vecdim);
-    hnswlib::L2Space l2space(vecdim);
-
-//    hnswlib::HierarchicalNSW<int> *appr_alg;
-//    hnswlib::HierarchicalNSW<float> *appr_alg = new hnswlib::HierarchicalNSW<float>(&l2space, vecsize, M, efConstruction);
-//    if (exists_test(path_index)) {
-////        std::cout << "Loading index from " << path_index << ":\n";
-////        appr_alg = new hnswlib::HierarchicalNSW<int>(&l2space, path_index, false);
-////        std::cout << "Actual memory usage: " << getCurrentRSS() / 1000000 << " Mb \n";
-//        printf("File %s exits.\n", path_index);
-//    } else {
-//        std::cout << "Building index:\n";
-////        appr_alg = new hnswlib::HierarchicalNSW<int>(&l2space, vecsize, M, efConstruction);
-//        appr_alg = new hnswlib::HierarchicalNSW<float>(&l2space, vecsize, M, efConstruction);
-//
-//        {
-//            float *mass = (float *) malloc(vecdim * sizeof(float));
-//            input.read((char *) &in, 4);
-//            if (in != vecdim) {
-//                std::cout << "file error";
-//                exit(1);
-//            }
-////        input.read((char *) massb, in);
-////
-////        for (int j = 0; j < vecdim; j++) {
-////            mass[j] = massb[j] * (1.0f);
-////        }
-////        appr_alg->addPoint((void *) (massb), (size_t) 0); // ??? massb or mass? Strange
-//            input.read(reinterpret_cast<char *>(mass), 4 * vecdim);
-//            appr_alg->addPoint((void *) mass, (size_t) 0);
-//            free(mass);
-//        }
-//        int j1 = 0;
-//        StopW stopw = StopW();
-//        StopW stopw_full = StopW();
-//        size_t report_every = 100000;
-////        float *mass = (float *) malloc(vecdim * sizeof(float));
-//#pragma omp parallel for
-//        for (int i = 1; i < vecsize; i++) {
-////            unsigned char mass[128];
-//            float *mass = (float *) malloc(vecdim * sizeof(float));
-//            int j2=0;
-//#pragma omp critical
-//            {
-//
-//                input.read((char *) &in, 4);
-//                if (in != vecdim) {
-//                    std::cout << "file error";
-//                    exit(1);
-//                }
-////                input.read((char *) massb, in);
-////                for (int j = 0; j < vecdim; j++) {
-////                    mass[j] = massb[j];
-////                }
-//                input.read(reinterpret_cast<char *>(mass), 4 * vecdim);
-//                j1++;
-//                j2=j1;
-//                if (j1 % report_every == 0) {
-//                    std::cout << j1 / (0.01 * vecsize) << " %, "
-//                              << report_every / (1000.0 * 1e-6 * stopw.getElapsedTimeMicro()) << " kips " << " Mem: "
-//                              << getCurrentRSS() / 1000000 << " Mb \n";
-//                    stopw.reset();
-//                }
-//            }
-//            appr_alg->addPoint((void *) (mass), (size_t) j2);
-//
-//            free(mass);
-//        }
-////        free(mass);
-//        input.close();
-//        std::cout << "Build time:" << 1e-6 * stopw_full.getElapsedTimeMicro() << "  seconds\n";
-//        appr_alg->saveIndex(path_index);
-//    }
-
-
-    std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> answers;
-    size_t k = 100; // The K as in K-NN
-    std::cout << "Parsing gt:\n";
-    get_gt(
-            massQA,
-            qsize,
-            answers,
-            k);
-    std::cout << "Loaded gt\n";
-    for (int i = 0; i < 1; i++)
-        test_vs_recall(massQ, vecsize, qsize, *appr_alg, vecdim, answers, k);
-    std::cout << "Actual memory usage: " << getCurrentRSS() / 1000000 << " Mb \n";
+        printf("------- FINAL -------\n");
+        printf("P_dest: %f "
+               "runtime(s.): %f "
+               "P@100: %f "
+               "latency(ms.): %f ",
+               P_dest,
+               runtime,
+               recall,
+               runtime / qsize * 1000.0);
+        printf("\n");
+    }
 }
 
 void usage(int argc, char *argv[])
 {
-    if (argc != 7) {
+    if (argc < 10) {
         fprintf(stderr,
-                "Usage: %s <index_file> <query_file> <groundtrue_file> "
-                "<size_in_millions> <dimension> <num_queries>\n", argv[0]);
+                "Usage: %s <index_file> <query_file> <groundtrue_file> <size_in_millions> "
+                "<dimension> <num_queries> <ef_lower> <ef_upper> "
+                "<P@100> [<P@100> ...]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 }
@@ -474,11 +407,19 @@ int main(int argc, char *argv[])
     const int subset_size_milllions = strtoull(argv[4], nullptr, 0); // number of vectors in millions
     const size_t vecdim = strtoull(argv[5], nullptr, 0); // dimention of vector
     const size_t qsize = strtoull(argv[6], nullptr, 0); // number of queries
+    const size_t ef_lower_origin = strtoull(argv[7], nullptr, 0);
+    const size_t ef_upper_origin = strtoull(argv[8], nullptr, 0);
+    const unsigned base_loc_P_dest = 9;
+    const unsigned num_P_target = argc - base_loc_P_dest;
+    std::vector<double> P_targets(num_P_target);
+    for (int a_i = 0; a_i < num_P_target; ++a_i) {
+        P_targets[a_i] = strtod(argv[a_i + base_loc_P_dest], nullptr);
+    }
 //    const int M = strtoull(argv[5], nullptr, 0);
 //    const int efConstruction = strtoull(argv[6], nullptr, 0);
 
     // Read ground truth
-    printf("loading gt...\n");
+    printf("loading gt %s ...\n", path_gt);
     unsigned int *massQA = (unsigned *) malloc(qsize * 100 * sizeof(unsigned ));
     load_true_NN(
             path_gt,
@@ -486,7 +427,7 @@ int main(int argc, char *argv[])
             massQA);
 
     // Read queries
-    printf("loading queries...\n");
+    printf("loading queries %s ...\n", path_q);
     float *massQ = (float *) malloc(qsize * vecdim * sizeof(float));
     {
         size_t num_q;
@@ -507,20 +448,30 @@ int main(int argc, char *argv[])
     }
 
     hnswlib::L2Space l2space(vecdim);
-    printf("loading index...\n");
+    printf("loading index %s ...\n", path_index);
     hnswlib::HierarchicalNSW<float> *appr_alg = new hnswlib::HierarchicalNSW<float>(&l2space, path_index, false);
+    std::vector<std::priority_queue<std::pair<float, hnswlib::labeltype >>> answers;
+    const size_t k = 100;
+    std::cout << "Parsing gt...\n";
+    get_gt(
+            massQA,
+            qsize,
+            answers,
+            k);
+
+    size_t vecsize = subset_size_milllions * 1000000;
 
     search(
             appr_alg,
+            P_targets,
+            ef_lower_origin,
+            ef_upper_origin,
             massQ,
-            massQA,
-            subset_size_milllions,
+            answers,
+            vecsize,
             vecdim,
-            qsize);
-//            path_data,
-//            path_index,
-//            M,
-//            efConstruction);
+            qsize,
+            k);
 
     // Cleanup
     {
